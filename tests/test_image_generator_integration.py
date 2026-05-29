@@ -7,17 +7,20 @@ Tests verify that:
 - Depth limiting (max_pending) works
 - Await completions returns results with correct metadata
 
-Run with:
-    cd muddev/aicompany_mud && source evenv/bin/activate
-    pytest tests/test_image_generator_integration.py -v
-
-Requires: ComfyUI running on port 8188 with at least one checkpoint.
+Requires: evennia-ai-image-generator installed, ComfyUI on port 8188.
+Skipped automatically if the package is missing.
 """
-import os
+import importlib.util
 
 import httpx
 import pytest
 
+if not importlib.util.find_spec("evennia_ai_image_generator"):
+    pytest.skip(
+        "evennia_ai_image_generator not installed", allow_module_level=True
+    )
+
+# Imports gated by the skip above — if we're here, the package is installed.
 from evennia_ai_image_generator.backend.base import ImageGenerationRequest
 from evennia_ai_image_generator.backend.comfyui_backend import ComfyUIBackend
 from evennia_ai_image_generator.backend.comfyui_queue import (
@@ -28,6 +31,7 @@ from evennia_ai_image_generator.backend.comfyui_queue import (
 
 # ComfyUI should be running on port 8188
 COMFYUI_SERVER = "http://127.0.0.1:8188"
+
 
 @pytest.fixture
 def comfyui_backend():
@@ -254,10 +258,7 @@ def test_queue_job_ids_are_round_trip_trackable(comfyui_backend):
     job = queue.get_job("roundtrip_test")
     assert job is not None
 
-    # Check ComfyUI history directly - the prompt_id is what ComfyUI tracks
-    # We can't easily check client_id in the history because it's stored
-    # under the prompt_data[1] metadata, not directly queryable by client_id
-    # But the prompt_id is our round-trip key
+    # Check ComfyUI history directly — the prompt_id is our round-trip key
     results = queue.await_completions(
         comfyui_backend,
         timeout_s=300.0,
