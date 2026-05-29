@@ -1,6 +1,5 @@
 # utils/computer.py
 import json
-from evennia.utils.utils import inherits_from
 from evennia.utils import logger
 
 from utils.computer_prompts import (
@@ -17,6 +16,7 @@ from utils.llm_client import build_default_client_from_env, LLMProvider
 from utils.room_director import build_snapshot, generate_from_snapshot
 from utils.affordance import ensure_affordance
 from utils.facts import get_facts
+from utils.room_object_query import iter_notable_props, find_object_by_dbref
 
 from collections.abc import Mapping, Sequence
 from django.conf import settings
@@ -78,19 +78,20 @@ class Computer:
         return providers
 
     # ---------- Context ----------
-    def notable_objects_packet(self, include_desc=True, max_desc_chars=500):
-        r = self.room
-        out = []
-        for obj in r.contents:
-            if not obj:
-                continue
-            if inherits_from(obj, "evennia.objects.objects.DefaultExit"):
-                continue
-            if inherits_from(obj, "evennia.objects.objects.DefaultCharacter"):
-                continue
-            if not obj.db.notable:
-                continue
+    def _build_messages(self, sys_prompt: str, payload: dict, ensure_json_safe: bool = False):
+        safe_payload = _json_safe(payload) if ensure_json_safe else payload
+        return [
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": json.dumps(safe_payload, ensure_ascii=False)},
+        ]
 
+    def _chat_json(self, messages):
+        client = build_default_client_from_env()
+        return client.chat_json(self.llm_providers(), messages)
+
+    def notable_objects_packet(self, include_desc=True, max_desc_chars=500):
+        out = []
+        for obj in iter_notable_props(self.room):
             ensure_affordance(obj)  # scaffold if missing
 
             desc = (obj.db.desc or "")
@@ -156,15 +157,8 @@ class Computer:
             recent_memory=memory,
         )
 
-        safe_payload = _json_safe(user_payload)
-
-        messages = [
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": json.dumps(safe_payload, ensure_ascii=False)},
-        ]
-
-        client = build_default_client_from_env()
-        data = client.chat_json(self.llm_providers(), messages)
+        messages = self._build_messages(sys_prompt, user_payload, ensure_json_safe=True)
+        data = self._chat_json(messages)
         # Unwrap common nested shapes: the model sometimes returns
         # {"object": {"key": ..., "desc": ...}} or {"result": {...}}.
         # Flatten to the dict that actually contains our schema fields.
@@ -198,26 +192,16 @@ class Computer:
             recent_memory=memory,
         )
 
-        messages = [
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
-        ]
-
-        client = build_default_client_from_env()
-        return client.chat_json(self.llm_providers(), messages)
+        messages = self._build_messages(sys_prompt, user_payload, ensure_json_safe=False)
+        return self._chat_json(messages)
 
     def generate_prop_edit_json(self, speaker_key: str, instruction: str, target_dbref: str) -> dict:
         """
         Thread-safe: returns {dbref, key, shortdesc, desc}
         - target_dbref must identify an object currently in the room.
         """
-        # Build target packet deterministically (main-thread object read, but we only read attrs here;
-        # if you want *strict* thread safety, you can pass a prebuilt dict instead of dbref).
-        target = None
-        for obj in self.room.contents:
-            if obj and str(obj.dbref) == str(target_dbref):
-                target = obj
-                break
+        # Build target packet deterministically
+        target = find_object_by_dbref(self.room, target_dbref)
         if not target:
             return {"dbref": "", "key": "", "shortdesc": "", "desc": ""}
 
@@ -253,12 +237,5 @@ class Computer:
             recent_memory=memory,
         )
 
-        safe_payload = _json_safe(user_payload)
-
-        messages = [
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": json.dumps(safe_payload, ensure_ascii=False)},
-        ]
-
-        client = build_default_client_from_env()
-        return client.chat_json(self.llm_providers(), messages)
+        messages = self._build_messages(sys_prompt, user_payload, ensure_json_safe=True)
+        return self._chat_json(messages)

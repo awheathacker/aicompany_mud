@@ -171,3 +171,102 @@ def test_delete_ambiguous_substring_returns_none(monkeypatch):
     assert removed is None
     assert lamp1.deleted is False
     assert lamp2.deleted is False
+
+
+# --- Tests for iter_props (generic prop iterator) ---
+
+def test_iter_props_yields_all_props(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    p1 = FakeObj("Lamp", "#10", kind="prop")
+    p2 = FakeObj("Sofa", "#11", kind="prop")
+    ex = FakeObj("North", "#12", kind="exit")
+    ch = FakeObj("Bob", "#13", kind="char")
+    room = FakeRoom([p1, p2, ex, ch, None])
+
+    got = list(roq.iter_props(room))
+    assert got == [p1, p2]
+
+
+def test_iter_props_empty_room(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    room = FakeRoom([])
+    got = list(roq.iter_props(room))
+    assert got == []
+
+
+def test_iter_props_filters_non_props(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    ex = FakeObj("North", "#12", kind="exit")
+    ch = FakeObj("Bob", "#13", kind="char")
+    room = FakeRoom([ex, ch, None])
+
+    got = list(roq.iter_props(room))
+    assert got == []
+
+
+# --- Tests for find_object_by_dbref ---
+
+def test_find_object_by_dbref_finds_prop(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    lamp = FakeObj("Lamp", "#10", kind="prop")
+    sofa = FakeObj("Sofa", "#11", kind="prop")
+    room = FakeRoom([lamp, sofa])
+
+    assert roq.find_object_by_dbref(room, "#10") is lamp
+    assert roq.find_object_by_dbref(room, "#11") is sofa
+
+
+def test_find_object_by_dbref_finds_exit(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    ex = FakeObj("North", "#77", kind="exit")
+    room = FakeRoom([ex])
+
+    assert roq.find_object_by_dbref(room, "#77") is ex
+
+
+def test_find_object_by_dbref_returns_none(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    lamp = FakeObj("Lamp", "#10", kind="prop")
+    room = FakeRoom([lamp])
+
+    assert roq.find_object_by_dbref(room, "#99") is None
+    assert roq.find_object_by_dbref(room, "10") is None  # missing # prefix shouldn't match as dbref lookup
+
+
+def test_find_object_by_dbref_empty_room(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    room = FakeRoom([])
+    assert roq.find_object_by_dbref(room, "#1") is None
+
+
+# --- Tests for iter_notable_props uses iter_props internally ---
+
+def test_iter_notable_props_is_subset_of_iter_props(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    p1 = FakeObj("Lamp", "#10", notable=True, kind="prop")
+    p2 = FakeObj("Sofa", "#11", notable=True, kind="prop")
+    p3 = FakeObj("Cushion", "#12", notable=False, kind="prop")
+    ex = FakeObj("North", "#13", kind="exit")
+    room = FakeRoom([p1, p2, p3, ex, None])
+
+    all_props = list(roq.iter_props(room))
+    notables = list(roq.iter_notable_props(room))
+    assert set(n for n in notables) == {p1, p2}
+    assert all(n in all_props for n in notables)
+
+
+def test_iter_props_and_notable_empty_contents(monkeypatch):
+    patch_inherits_from(monkeypatch)
+
+    room = FakeRoom(None)  # None contents (edge case)
+    assert list(roq.iter_props(room)) == []
+    assert list(roq.iter_notable_props(room)) == []
+

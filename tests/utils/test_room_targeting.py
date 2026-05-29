@@ -2,7 +2,7 @@
 from types import SimpleNamespace
 
 import utils.room_targeting as rt
-
+import utils.room_object_query as roq
 
 class FakeObj:
     def __init__(
@@ -34,7 +34,7 @@ def patch_inherits_from(monkeypatch):
             return getattr(obj, "_kind", None) == "char"
         return False
 
-    monkeypatch.setattr(rt, "inherits_from", fake_inherits_from)
+    monkeypatch.setattr(roq, "inherits_from", fake_inherits_from)
 
 
 def test_words_min_length_and_alnum_only():
@@ -130,7 +130,7 @@ def test_resolve_edit_target_ambiguity_returns_list(monkeypatch):
 
 def test_resolve_edit_target_skips_none_entries(monkeypatch):
     # Patch inherits_from so nothing is treated as exit/character
-    monkeypatch.setattr(rt, "inherits_from", lambda obj, path: False)
+    monkeypatch.setattr(roq, "inherits_from", lambda obj, path: False)
 
     class Obj:
         def __init__(self, key, sd, notable=True, dbref="#1"):
