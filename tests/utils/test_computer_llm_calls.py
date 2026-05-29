@@ -3,6 +3,7 @@ import json
 from types import SimpleNamespace
 
 import utils.computer as comp
+import utils.room_object_query as roq
 
 
 class FakeObj:
@@ -45,7 +46,7 @@ def patch_inherits_from(monkeypatch):
             return getattr(obj, "_kind", None) == "char"
         return False
 
-    monkeypatch.setattr(comp, "inherits_from", fake_inherits_from)
+    monkeypatch.setattr(roq, "inherits_from", fake_inherits_from)
 
 
 class RecordingClient:

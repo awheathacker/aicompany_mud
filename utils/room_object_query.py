@@ -11,12 +11,25 @@ def is_character(obj) -> bool:
 def is_prop(obj) -> bool:
     return bool(obj) and (not is_exit(obj)) and (not is_character(obj))
 
-def iter_notable_props(room):
+def iter_props(room):
+    """Yield every prop (non-exit, non-character) object in a room."""
     for obj in (room.contents or []):
-        if not obj or not is_prop(obj):
-            continue
+        if obj and is_prop(obj):
+            yield obj
+
+def iter_notable_props(room):
+    """Yield every notable prop object in a room."""
+    for obj in iter_props(room):
         if getattr(obj.db, "notable", False):
             yield obj
+
+def find_object_by_dbref(room, dbref):
+    """Find an object in the room by its numeric dbref string (e.g. "#67")."""
+    target = str(dbref)
+    for obj in (room.contents or []):
+        if obj and str(obj.dbref) == target:
+            return obj
+    return None
 
 def list_notables_with_dbref(room, limit: int = 12) -> str:
     out = [f"{o.key}({o.dbref})" for o in iter_notable_props(room)]
@@ -36,16 +49,11 @@ def find_object_in_room(room, target_text: str, notable_only: bool = False):
 
     # dbref
     if t.startswith("#") and t[1:].isdigit():
-        for obj in (room.contents or []):
-            if obj and str(obj.dbref) == t:
-                return obj
-        return None
+        return find_object_by_dbref(room, t)
 
     needle = t.lower()
     candidates = []
-    for obj in (room.contents or []):
-        if not obj or not is_prop(obj):
-            continue
+    for obj in iter_props(room):
         if notable_only and not getattr(obj.db, "notable", False):
             continue
 
@@ -73,18 +81,16 @@ def delete_object_by_selector(room, selector: str):
 
     # dbref
     if t.startswith("#") and t[1:].isdigit():
-        for obj in (room.contents or []):
-            if obj and str(obj.dbref) == t:
-                removed = {"key": obj.key, "dbref": str(obj.dbref)}
-                obj.delete()
-                return removed
+        obj = find_object_by_dbref(room, t)
+        if obj:
+            removed = {"key": obj.key, "dbref": str(obj.dbref)}
+            obj.delete()
+            return removed
         return None
 
     needle = t.lower()
     # exact match first
-    for obj in (room.contents or []):
-        if not obj or not is_prop(obj):
-            continue
+    for obj in iter_props(room):
         key = (obj.key or "").lower()
         sd = (obj.db.shortdesc or "").lower()
         if needle == key or needle == sd:
@@ -94,9 +100,7 @@ def delete_object_by_selector(room, selector: str):
 
     # unique substring
     candidates = []
-    for obj in (room.contents or []):
-        if not obj or not is_prop(obj):
-            continue
+    for obj in iter_props(room):
         key = (obj.key or "").lower()
         sd = (obj.db.shortdesc or "").lower()
         if needle in key or (sd and needle in sd):

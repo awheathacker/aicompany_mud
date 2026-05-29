@@ -2,6 +2,7 @@
 from types import SimpleNamespace
 
 import utils.computer as comp
+import utils.room_object_query as roq
 
 
 class FakeObj:
@@ -44,7 +45,7 @@ def patch_inherits_from(monkeypatch):
             return getattr(obj, "_kind", None) == "char"
         return False
 
-    monkeypatch.setattr(comp, "inherits_from", fake_inherits_from)
+    monkeypatch.setattr(roq, "inherits_from", fake_inherits_from)
 
 
 def test_notable_objects_packet_filters_and_truncates(monkeypatch):

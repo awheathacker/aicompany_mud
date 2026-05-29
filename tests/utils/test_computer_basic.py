@@ -108,3 +108,68 @@ def test_room_memory_text_formats_and_truncates():
     r.db.memory = long
     tail = c.room_memory_text(max_chars=10)
     assert len(tail) == 10
+
+
+# --- Tests for _build_messages helper ---
+
+def test_build_messages_with_json_safe():
+    r = FakeRoom()
+    c = comp.Computer(r)
+
+    sys_prompt = "You are a system."
+    payload = {"key": "value", "nested": {"a": b"bytes"}}
+    messages = c._build_messages(sys_prompt, payload, ensure_json_safe=True)
+
+    assert len(messages) == 2
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == sys_prompt
+    assert messages[1]["role"] == "user"
+    # The payload was JSON-encoded (bytes converted to string)
+    parsed = json.loads(messages[1]["content"])
+    assert parsed["key"] == "value"
+    assert parsed["nested"]["a"] == "bytes"
+
+
+def test_build_messages_without_json_safe():
+    r = FakeRoom()
+    c = comp.Computer(r)
+
+    sys_prompt = "System prompt."
+    payload = {"text": "hello", "num": 42}
+    messages = c._build_messages(sys_prompt, payload, ensure_json_safe=False)
+
+    assert len(messages) == 2
+    assert messages[0]["content"] == sys_prompt
+    parsed = json.loads(messages[1]["content"])
+    assert parsed == {"text": "hello", "num": 42}
+
+
+def test_build_messages_handles_empty_payload():
+    r = FakeRoom()
+    c = comp.Computer(r)
+
+    messages = c._build_messages("sys", {})
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "sys"
+    assert messages[1]["role"] == "user"
+    assert json.loads(messages[1]["content"]) == {}
+
+
+def test_chat_json_delegates_to_client(monkeypatch):
+    r = FakeRoom()
+    c = comp.Computer(r)
+
+    # Mock the client
+    mock_client = SimpleNamespace()
+    mock_client.chat_json = lambda providers, msgs: {"result": "ok"}
+
+    class FakeModule:
+        @staticmethod
+        def build_default_client_from_env():
+            return mock_client
+
+    monkeypatch.setattr(comp, "build_default_client_from_env", FakeModule.build_default_client_from_env)
+
+    msgs = [{"role": "system", "content": "test"}]
+    result = c._chat_json(msgs)
+    assert result == {"result": "ok"}
