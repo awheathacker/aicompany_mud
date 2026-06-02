@@ -16,7 +16,8 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 
 from evennia import default_cmds
 from commands.dig import CmdDigSmart
-
+from commands.trail import CmdTrail
+from commands.nearby import CmdNearby
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
     The `CharacterCmdSet` contains general in-game commands like `look`,
@@ -35,6 +36,8 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         # any commands you add below will overload the default ones.
         #
         self.add(CmdDigSmart())
+        self.add(CmdTrail())
+        self.add(CmdNearby())
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
