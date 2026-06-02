@@ -16,6 +16,7 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 
 from evennia import default_cmds
 from commands.dig import CmdDigSmart
+from commands.mood import CmdMood
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
@@ -35,6 +36,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         # any commands you add below will overload the default ones.
         #
         self.add(CmdDigSmart())
+        self.add(CmdMood())
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
@@ -85,8 +87,8 @@ class SessionCmdSet(default_cmds.SessionCmdSet):
 
     def at_cmdset_creation(self):
         """
-        This is the only method defined in a cmdset, called during
-        its creation. It should populate the set with command instances.
+        This is the only method defined in a cmdset, called during its
+        creation. It should populate the set with command instances.
 
         As and example we just add the empty base `Command` object.
         It prints some info.
