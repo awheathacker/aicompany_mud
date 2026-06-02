@@ -1,6 +1,6 @@
 # utils/image_generation.py
 """
-Lightweight helpers for triggering ComfyUI image generation from
+Lightweight helpers for triggering FLUX.2 image generation from
 SmartRoom and prop objects — no Evennia typeclass coupling required.
 
 Uses the evennia_ai_image_generator package (must be installed).
@@ -16,33 +16,29 @@ _backend_cache = None
 
 
 def _get_backend() -> Any | None:
-    """Return a configured ComfyUI backend (or ``None`` if missing)."""
+    """Return a configured FLUX.2 REST backend (or ``None`` if missing)."""
     global _backend_cache
     if _backend_cache is not None:
         return _backend_cache
 
     try:
-        from evennia_ai_image_generator.backend.comfyui_backend import ComfyUIBackend
+        from evennia_ai_image_generator.backend.flux2_rest_backend import Flux2RestBackend
 
-        backend = ComfyUIBackend(
-            server_url=os.getenv("COMFYUI_SERVER_URL", "http://127.0.0.1:8188"),
-            scheduler="karras",
-            sampler_name="euler",
-            default_steps=int(os.getenv("COMFYUI_STEPS", "20")),
-            default_cfg=float(os.getenv("COMFYUI_CFG", "7.5")),
+        # The FLUX.2 REST server runs on spark-c8ad (169.254.209.73:8190)
+        backend = Flux2RestBackend(
+            server_url=os.getenv("FLUX2_REST_URL", "http://169.254.209.73:8190"),
             output_dir="generated",
             media_url_base=os.getenv(
                 "MEDIA_URL_BASE",
                 "https://game.test/media/generated",
             ),
             timeout_s=120.0,
-            max_wait_s=600.0,
+            default_steps=int(os.getenv("FLUX2_REST_STEPS", "28")),
+            default_guidance_scale=float(os.getenv("FLUX2_REST_GUIDANCE", "7.0")),
+            default_seed=int(os.getenv("FLUX2_REST_SEED", "42")),
+            default_width=int(os.getenv("FLUX2_REST_WIDTH", "1024")),
+            default_height=int(os.getenv("FLUX2_REST_HEIGHT", "1024")),
         )
-        # Pre-resolve the checkpoint once
-        try:
-            backend._checkpoint_cache = backend._resolve_checkpoint()
-        except Exception:
-            pass  # Fallback: let generate() resolve it
         _backend_cache = backend
         return backend
     except ImportError:

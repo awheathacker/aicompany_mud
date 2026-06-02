@@ -25,6 +25,7 @@ put secret game- or server-specific settings in secret_settings.py.
 """
 
 # Use the defaults from Evennia unless explicitly overridden
+import os
 from evennia.settings_default import *
 
 ######################################################################
@@ -35,7 +36,30 @@ from evennia.settings_default import *
 SERVERNAME = "aicompany_mud"
 ALLOWED_HOSTS = ["pr1357.ddns.net"]
 BASE_EXIT_TYPECLASS = "typeclasses.exits.Exit"
-INSTALLED_APPS += ["evennia_ai_image_generator"]
+
+# Image directory for generated assets
+IMAGES_DIR = os.path.join(GAME_DIR, "images")
+
+# evennia-ai-image-generator: FLUX.2 REST backend configuration
+# The endpoint is the FLUX.2 server on spark-c8ad. Change the URL here
+# to switch backends.
+EVENNIA_AI_IMAGE_GENERATOR_CONFIG = {
+    "backend": {
+        "backend": "flux2_rest",
+        "options": {
+            "server_url": os.getenv("FLUX2_REST_URL", "http://169.254.209.73:8190"),
+            "output_dir": "generated",
+            "media_url_base": os.getenv(
+                "MEDIA_URL_BASE",
+                "https://game.test/media/generated",
+            ),
+            "timeout_s": 120.0,
+        },
+    },
+}
+
+# Serve generated images via Evennia's Django static handler
+STATICFILES_DIRS = [IMAGES_DIR]
 
 ######################################################################
 # Settings given in secret_settings.py override those in this file.
