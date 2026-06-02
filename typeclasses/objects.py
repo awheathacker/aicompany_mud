@@ -10,6 +10,7 @@ with a location in the game world (like Characters, Rooms, Exits).
 
 from evennia.objects.objects import DefaultObject
 from evennia.utils.utils import inherits_from
+from utils.image_mixin import ImageMixin
 
 
 class ObjectParent:
@@ -23,7 +24,7 @@ class ObjectParent:
     """
 
 
-class Object(ObjectParent, DefaultObject):
+class Object(ImageMixin, ObjectParent, DefaultObject):
     def at_object_delete(self):
         """
         When a notable prop is deleted inside a SmartRoom, trigger a rewrite.
@@ -44,4 +45,10 @@ class Object(ObjectParent, DefaultObject):
         url = getattr(self.db, "image_url", None)
         if url:
             return f"{desc}\n\n|yImage: {url}|n"
+        
+        # No image yet — trigger generation (respects cooldown)
+        if self._can_trigger_image():
+            prompt = desc or self.key
+            self._trigger_image_generation(prompt, subject_type="object")
+        
         return desc
