@@ -62,7 +62,7 @@ class ImageMixin:
 
     def _trigger_image_generation(self, prompt: str, subject_type: str = "room") -> None:
         """
-        Trigger asynchronous image generation via the image generator backend.
+        Trigger asynchronous image generation via the FLUX.2 backend.
 
         This is the main hook — subclasses call this when they want an image.
         The image URL gets stored in self.db.image_url and is automatically
@@ -82,26 +82,19 @@ class ImageMixin:
 
         def _generate():
             try:
-                # Lazy import — allows graceful fallback when package is missing
                 try:
-                    from evennia_ai_image_generator.backend.comfyui_backend import (
-                        ComfyUIBackend,
-                    )
+                    from evennia_ai_image_generator.backend.flux2_rest_backend import Flux2RestBackend
                 except ImportError:
                     logger.debug("evennia_ai_image_generator not installed, skipping image gen")
                     self.db.image_generating = False
                     return None
 
-                backend = ComfyUIBackend(
-                    server_url="http://127.0.0.1:8188",
-                    scheduler="karras",
-                    sampler_name="euler",
-                    default_steps=20,
-                    default_cfg=7.5,
-                    output_dir="generated",
+                backend = Flux2RestBackend(
+                    server_url="http://169.254.209.73:8190",
                     media_url_base="https://game.test/media/generated",
-                    timeout_s=120.0,
-                    max_wait_s=600.0,
+                    output_dir="generated",
+                    default_steps=28,
+                    timeout_s=180.0,
                 )
 
                 from evennia_ai_image_generator.backend.base import ImageGenerationRequest
@@ -110,7 +103,6 @@ class ImageMixin:
                         subject_type=subject_type,
                         subject_key=self.key,
                         prompt=prompt,
-                        negative_prompt="blurry, low-res, cartoon, text, watermark",
                         mode="txt2img",
                         width=1024,
                         height=1024,
@@ -136,7 +128,7 @@ class ImageMixin:
         Trigger an image for a child object (prop, creature, etc.).
 
         The image is generated and stored on the *object*, not the room.
-        Uses the room's cooldown to avoid hammering ComfyUI.
+        Uses the room's cooldown to avoid hammering the FLUX.2 server.
         """
         if not self._can_trigger_image():
             return
@@ -149,21 +141,17 @@ class ImageMixin:
         def _generate():
             try:
                 try:
-                    from evennia_ai_image_generator.backend.comfyui_backend import ComfyUIBackend
+                    from evennia_ai_image_generator.backend.flux2_rest_backend import Flux2RestBackend
                 except ImportError:
                     logger.debug("evennia_ai_image_generator not installed, skipping object image")
                     return None
 
-                backend = ComfyUIBackend(
-                    server_url="http://127.0.0.1:8188",
-                    scheduler="karras",
-                    sampler_name="euler",
-                    default_steps=20,
-                    default_cfg=7.5,
-                    output_dir="generated",
+                backend = Flux2RestBackend(
+                    server_url="http://169.254.209.73:8190",
                     media_url_base="https://game.test/media/generated",
-                    timeout_s=120.0,
-                    max_wait_s=600.0,
+                    output_dir="generated",
+                    default_steps=28,
+                    timeout_s=180.0,
                 )
 
                 prompt = getattr(obj.db, "shortdesc", "") or obj.key
@@ -173,7 +161,6 @@ class ImageMixin:
                         subject_type="object",
                         subject_key=obj.key,
                         prompt=prompt,
-                        negative_prompt="blurry, low-res, cartoon, text, watermark",
                         mode="txt2img",
                         width=1024,
                         height=1024,
