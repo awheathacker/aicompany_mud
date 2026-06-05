@@ -69,7 +69,7 @@ class SmartRoom(ImageMixin, DefaultRoom):
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-    LLM_TIMEOUT_S = float(os.getenv("LLM_TIMEOUT_S", "30"))
+    LLM_TIMEOUT_S = float(os.getenv("LLM_TIMEOUT_S", "180"))
 
     # ----------------------------
     # Init
@@ -411,6 +411,10 @@ class SmartRoom(ImageMixin, DefaultRoom):
                 if new_desc:
                     new_desc = new_desc.strip()
                     target.db.desc = new_desc
+
+                # Trigger a fresh object image after the edit — the old image is likely stale.
+                if self.image_enabled and self._can_trigger_image():
+                    self._trigger_object_image(target)
 
                 self.msg_contents(
                     f"|mReality tweaks itself.|n {target.key} now looks a little different."
