@@ -16,6 +16,9 @@ own cmdsets by inheriting from them or directly from `evennia.CmdSet`.
 
 from evennia import default_cmds
 from commands.dig import CmdDigSmart
+from commands.take import CmdTake
+from commands.inventory import CmdInventory
+from commands.drop import CmdDrop
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
@@ -35,6 +38,9 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         # any commands you add below will overload the default ones.
         #
         self.add(CmdDigSmart())
+        self.add(CmdTake())
+        self.add(CmdInventory())
+        self.add(CmdDrop())
 
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
