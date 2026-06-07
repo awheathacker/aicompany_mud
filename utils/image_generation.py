@@ -1,71 +1,52 @@
 # utils/image_generation.py
 """
-Lightweight helpers for triggering ComfyUI image generation from
-SmartRoom and prop objects — no Evennia typeclass coupling required.
+Image generation helpers — uses FLUX.2 REST API on spark-c8ad.
 
-Uses the evennia_ai_image_generator package (must be installed).
+The FLUX.2 REST server (spark-c8ad:8190) generates images, saves them
+locally to the generated/ directory, and returns URLs that the Discord
+gateway can resolve to local files.
 """
 from __future__ import annotations
 
-import hashlib
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Lazy import so the MUD runs even when the package is absent.
 _backend_cache = None
 
 
 def _get_backend() -> Any | None:
-    """Return a configured ComfyUI backend (or ``None`` if missing)."""
+    """Return a configured FLUX.2 REST backend."""
     global _backend_cache
     if _backend_cache is not None:
         return _backend_cache
 
     try:
-        from evennia_ai_image_generator.backend.comfyui_backend import ComfyUIBackend
+        from evennia_ai_image_generator.backend.flux2_rest_backend import Flux2RestBackend
 
-        backend = ComfyUIBackend(
-            server_url=os.getenv("COMFYUI_SERVER_URL", "http://127.0.0.1:8188"),
-            scheduler="karras",
-            sampler_name="euler",
-            default_steps=int(os.getenv("COMFYUI_STEPS", "20")),
-            default_cfg=float(os.getenv("COMFYUI_CFG", "7.5")),
+        backend = Flux2RestBackend(
+            server_url=os.getenv("FLUX2_REST_URL", "http://169.254.209.73:8190"),
             output_dir="generated",
             media_url_base=os.getenv(
                 "MEDIA_URL_BASE",
                 "https://game.test/media/generated",
             ),
-            timeout_s=120.0,
-            max_wait_s=600.0,
+            default_steps=40,
+            default_guidance_scale=7.0,
         )
-        # Pre-resolve the checkpoint once
-        try:
-            backend._checkpoint_cache = backend._resolve_checkpoint()
-        except Exception:
-            pass  # Fallback: let generate() resolve it
         _backend_cache = backend
         return backend
     except ImportError:
+        logger.warning("evennia_ai_image_generator not found — images will be silent")
         _backend_cache = None
         return None
-
-
-def _generate_image(backend, subject_type: str, subject_key: str, prompt: str) -> str | None:
-    """Shared image generation logic."""
-    from evennia_ai_image_generator.backend.base import ImageGenerationRequest
-
-    result = backend.generate(
-        ImageGenerationRequest(
-            subject_type=subject_type,
-            subject_key=subject_key,
-            prompt=prompt,
-            negative_prompt="blurry, low-res, cartoon, text, watermark",
-            mode="txt2img",
-            width=1024,
-            height=1024,
-        )
-    )
-    return result.image_url
+    except Exception as e:
+        logger.warning("FLUX.2 REST backend init failed: %s", e)
+        _backend_cache = None
+        return None
 
 
 def generate_room_image(room_description: str) -> str | None:
@@ -78,9 +59,8 @@ def generate_room_image(room_description: str) -> str | None:
         return None
 
     try:
-        digest = hashlib.sha256(room_description.encode("utf-8")).hexdigest()[:12]
-        subject_key = f"room_desc_{digest}"
-        return _generate_image(backend, "room", subject_key, room_description)
+        result = backend.generate_room(room_description)
+        return result.image_url
     except Exception:
         return None
 
@@ -100,6 +80,7 @@ def generate_object_image(
 
     try:
         prompt = shortdesc or object_key or object_desc
-        return _generate_image(backend, "object", object_key, prompt)
+        result = backend.generate_object(object_key, prompt)
+        return result.image_url
     except Exception:
         return None

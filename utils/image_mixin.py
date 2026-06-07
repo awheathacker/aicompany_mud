@@ -16,6 +16,30 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _get_image_backend():
+    """Load the image generation backend from Evennia settings or use FLUX2 REST defaults."""
+    from evennia_ai_image_generator.backend.loader import load_backend
+    from evennia_ai_image_generator.backend.flux2_rest_backend import Flux2RestBackend
+
+    # Try to load from Evennia settings
+    try:
+        from evennia.settings import EVENNIA_AI_IMAGE_GENERATOR_CONFIG
+        if EVENNIA_AI_IMAGE_GENERATOR_CONFIG:
+            backend_cfg = EVENNIA_AI_IMAGE_GENERATOR_CONFIG.get("backend")
+            if backend_cfg:
+                return load_backend(backend_cfg)
+    except Exception as e:
+        logger.warning(f"[ImageMixin] Config load failed, using FLUX2 defaults: {e}")
+
+    # Fallback: use FLUX2 REST backend pointing to spark-c8ad
+    return Flux2RestBackend(
+        server_url="http://169.254.209.73:8190",
+        output_dir="generated",
+        media_url_base="https://game.test/media/generated",
+        timeout_s=120.0,
+    )
+
+
 class ImageMixin:
     """
     Evennia typeclass mixin for AI-generated images.
@@ -62,11 +86,11 @@ class ImageMixin:
 
     def _trigger_image_generation(self, prompt: str, subject_type: str = "room") -> None:
         """
-        Trigger asynchronous image generation via the image generator backend.
+        Trigger asynchronous image generation via the configured backend.
 
-        This is the main hook — subclasses call this when they want an image.
-        The image URL gets stored in self.db.image_url and is automatically
-        appended to descriptions.
+        Uses EVENNIA_AI_IMAGE_GENERATOR_CONFIG from the Evennia settings to load
+        the correct backend (e.g., flux2_rest pointing to the remote FLUX.2 server).
+        Falls back to Flux2RestBackend defaults if config is missing.
         """
         if not self.image_enabled:
             return
@@ -82,27 +106,13 @@ class ImageMixin:
 
         def _generate():
             try:
-                # Lazy import — allows graceful fallback when package is missing
+                # Load backend from config (falls back to FLUX2 REST defaults)
                 try:
-                    from evennia_ai_image_generator.backend.comfyui_backend import (
-                        ComfyUIBackend,
-                    )
-                except ImportError:
-                    logger.debug("evennia_ai_image_generator not installed, skipping image gen")
+                    backend = _get_image_backend()
+                except Exception as e:
+                    logger.warning(f"[ImageMixin] Backend load failed: {e}")
                     self.db.image_generating = False
                     return None
-
-                backend = ComfyUIBackend(
-                    server_url="http://127.0.0.1:8188",
-                    scheduler="karras",
-                    sampler_name="euler",
-                    default_steps=20,
-                    default_cfg=7.5,
-                    output_dir="generated",
-                    media_url_base="https://game.test/media/generated",
-                    timeout_s=120.0,
-                    max_wait_s=600.0,
-                )
 
                 from evennia_ai_image_generator.backend.base import ImageGenerationRequest
                 result = backend.generate(
@@ -136,7 +146,7 @@ class ImageMixin:
         Trigger an image for a child object (prop, creature, etc.).
 
         The image is generated and stored on the *object*, not the room.
-        Uses the room's cooldown to avoid hammering ComfyUI.
+        Uses the room's cooldown to avoid hammering the backend.
         """
         if not self._can_trigger_image():
             return
@@ -148,23 +158,7 @@ class ImageMixin:
 
         def _generate():
             try:
-                try:
-                    from evennia_ai_image_generator.backend.comfyui_backend import ComfyUIBackend
-                except ImportError:
-                    logger.debug("evennia_ai_image_generator not installed, skipping object image")
-                    return None
-
-                backend = ComfyUIBackend(
-                    server_url="http://127.0.0.1:8188",
-                    scheduler="karras",
-                    sampler_name="euler",
-                    default_steps=20,
-                    default_cfg=7.5,
-                    output_dir="generated",
-                    media_url_base="https://game.test/media/generated",
-                    timeout_s=120.0,
-                    max_wait_s=600.0,
-                )
+                backend = _get_image_backend()
 
                 prompt = getattr(obj.db, "shortdesc", "") or obj.key
                 from evennia_ai_image_generator.backend.base import ImageGenerationRequest
