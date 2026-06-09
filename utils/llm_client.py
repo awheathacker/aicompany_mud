@@ -31,8 +31,8 @@ Messages = List[Dict[str, str]]
 @dataclass(frozen=True)
 class LLMProvider:
     label: str
-    base_url: str
-    model: str
+    base_url: Optional[str] = None
+    model: Optional[str] = None
     api_key: Optional[str] = None
 
 
@@ -92,7 +92,18 @@ class LLMClient:
     def _call_chat_completions_json(self, provider: LLMProvider, messages: Messages) -> Optional[JsonDict]:
         """
         Returns parsed JSON dict or None on exhaustion.
+        Fails fast on None/empty base_url or model.
         """
+        # Fail fast: validate provider before building URL
+        if not provider.base_url:
+            raise ValueError(
+                f"[{provider.label}] base_url is None/empty — check LOCAL_BASE_URL in settings"
+            )
+        if not provider.model:
+            raise ValueError(
+                f"[{provider.label}] model is None/empty — check LOCAL_MODEL in settings"
+            )
+
         url = f"{provider.base_url.rstrip('/')}/chat/completions"
 
         headers = {"Content-Type": "application/json"}

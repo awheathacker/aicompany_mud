@@ -113,6 +113,10 @@ class SmartRoom(ImageMixin, DefaultRoom):
     # Auto room description rewrites (director)
     # ----------------------------
 
+    def _unlock_desc_rewrite(self):
+        """Safety net: force-unlock the desc_rewrite_inflight flag."""
+        self.ndb.desc_rewrite_inflight = False
+
     def get_display_name(self, looker, **kwargs):
         name = super().get_display_name(looker, **kwargs)
         # Ensure we don't double-append if Evennia already did for builders
@@ -175,10 +179,14 @@ class SmartRoom(ImageMixin, DefaultRoom):
         self.db.last_desc_rewrite_ts = now
 
         # NEW: subtle “thinking” cue
+        # Safety net: if the LLM call hangs, unlock the inflight flag after 20s
+        # (generate_room_desc_safe times out at 15s + 1 attempt)
+        safe_unlock = delay(20.0, self._unlock_desc_rewrite)
+
         self.msg_contents("|mThe set shimmers, reconsidering itself…|n")
         computer = Computer(self)
         snapshot = computer.director_snapshot()
-        d = deferToThread(computer.generate_room_desc, snapshot)
+        d = deferToThread(computer.generate_room_desc_safe, snapshot)
 
         def _on_ok(data):
             try:

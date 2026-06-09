@@ -137,6 +137,18 @@ class Computer:
         client = build_default_client_from_env()
         return generate_from_snapshot(client, self.llm_providers(), snapshot)
 
+    def generate_room_desc_safe(self, snapshot: dict) -> dict:
+        """
+        Thread-safe room desc generation with a short timeout.
+        Uses a 15-second timeout (vs 180s default) so the room rewrite
+        doesn't lock up for 3 minutes on a hung LLM call.
+        """
+        client = build_default_client_from_env()
+        # Override timeout for room rewrites (shorter than the 180s default)
+        client.timeout_s = 15.0
+        client.max_attempts = 1  # Don't waste 30s on a hanging room rewrite
+        return generate_from_snapshot(client, self.llm_providers(), snapshot)
+
     # ---------- Writer: create prop ----------
     def generate_prop_json(self, speaker_key: str, instruction: str) -> dict:
         """
