@@ -18,8 +18,10 @@ def register_ability(name, verbs=None, requires_property=None, description=""):
         requires_property: Property requirements for the target object.
             Supports comparison operators as strings:
             - ">=1" means the property value must be >= 1
+            - "<=100" means the property value must be <= 100
+            - ">1" means the property value must be > 1
+            - "<100" means the property value must be < 100
             - "True"/"False" for boolean checks
-            - Plain values for exact match
         description: Human-readable description
 
     Returns:
@@ -56,10 +58,10 @@ def _check_property_match(obj_props, prop_name, prop_requirement):
     Check if an object's property matches a requirement.
 
     Supports:
-    - String ">=N" → property value >= N
-    - String "<=N" → property value <= N
-    - String ">N" → property value > N
-    - String "<N" → property value < N
+    - String ">=N" → property value >= N (handles decimals)
+    - String "<=N" → property value <= N (handles decimals)
+    - String ">N" → property value > N (handles decimals)
+    - String "<N" → property value < N (handles decimals)
     - Boolean "True"/"False" → exact boolean match
     - Integer/float → exact numeric match
     - String → exact string match
@@ -71,17 +73,29 @@ def _check_property_match(obj_props, prop_name, prop_requirement):
 
     if isinstance(prop_requirement, str):
         if prop_requirement.startswith(">="):
-            threshold = int(prop_requirement[2:])
-            return actual >= threshold
+            try:
+                threshold = float(prop_requirement[2:])
+                return float(actual) >= threshold
+            except (ValueError, TypeError):
+                return False
         elif prop_requirement.startswith("<="):
-            threshold = int(prop_requirement[2:])
-            return actual <= threshold
+            try:
+                threshold = float(prop_requirement[2:])
+                return float(actual) <= threshold
+            except (ValueError, TypeError):
+                return False
         elif prop_requirement.startswith(">"):
-            threshold = int(prop_requirement[1:])
-            return actual > threshold
+            try:
+                threshold = float(prop_requirement[1:])
+                return float(actual) > threshold
+            except (ValueError, TypeError):
+                return False
         elif prop_requirement.startswith("<"):
-            threshold = int(prop_requirement[1:])
-            return actual < threshold
+            try:
+                threshold = float(prop_requirement[1:])
+                return float(actual) < threshold
+            except (ValueError, TypeError):
+                return False
         elif prop_requirement == "True":
             return actual is True or actual == True
         elif prop_requirement == "False":

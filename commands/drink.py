@@ -4,7 +4,9 @@
 from evennia import Command
 from evennia.utils.search import search_object
 
-from utils.abilities import find_abilities_for_object
+# Import abilities_drink so the decorator registers the "drink" ability at startup
+import utils.abilities_drink
+from utils.abilities import find_abilities_for_object, execute_ability
 
 
 class CmdDrink(Command):
@@ -32,67 +34,70 @@ class CmdDrink(Command):
             caller.msg("You are nowhere to drink in.")
             return
 
-        # Parse target from arguments
         target_key = (self.args or "").strip()
 
         if not target_key:
             # No target specified — list drinkable things
-            caller.msg("Usage: |wdrink [object]|n — e.g., |wdrink glass of soda|n")
+            drinkable = [
+                obj for obj in room.contents
+                if hasattr(obj, 'db') and
+                obj.db.properties and
+                obj.db.properties.get("is_drinkable") and
+                obj.db.properties.get("current_volume_ml", 0) > 0
+            ]
+
+            if drinkable:
+                lines = ["|yYou can drink from:|n"]
+                for obj in drinkable:
+                    props = obj.db.properties
+                    name = props.get("liquid_name", "liquid")
+                    vol = props.get("current_volume_ml", 0)
+                    lines.append(f"  {obj.key} ({vol}ml of {name})")
+                caller.msg("\n".join(lines))
+            else:
+                caller.msg("There's nothing drinkable here.")
             return
 
-        # Try to find the target object
-        caller.msg(f"Trying to find '{target_key}'...")
-
+        # Find the target object
         if target_key.startswith("#"):
             matches = search_object(target_key)
+            if matches:
+                target = matches[0]
+                if target.location != room:
+                    caller.msg(f"You don't see '{target_key}' to drink from.")
+                    return
+            else:
+                caller.msg(f"You don't see '{target_key}' to drink from.")
+                return
+        else:
+            # Search room contents by name
+            matches = [obj for obj in room.contents
+                       if target_key.lower() in obj.key.lower()]
             if matches:
                 target = matches[0]
             else:
                 caller.msg(f"You don't see '{target_key}' to drink from.")
                 return
-        else:
-            # Simple search in room contents
-            target = room.get_contents(name=target_key)
-            if target:
-                target = target[0]
-            else:
-                # Try partial match
-                matches = [obj for obj in room.contents
-                          if target_key.lower() in obj.key.lower()]
-                if matches:
-                    target = matches[0]
-                else:
-                    caller.msg(f"You don't see '{target_key}' to drink from.")
-                    return
 
         # Use the ability framework
         abilities = find_abilities_for_object(target)
 
         if not abilities:
-            # Check why not
             if not target.db.properties:
                 caller.msg(f"The {target.key} doesn't seem to have any special properties.")
                 return
-
             if not target.db.properties.get("is_drinkable"):
                 caller.msg(f"The {target.key} isn't drinkable.")
                 return
-
             current_vol = target.db.properties.get("current_volume_ml", 0)
             if current_vol <= 0:
                 caller.msg(f"The {target.key} is empty.")
                 return
-
-            caller.msg(f"No matching ability found for the {target.key}.")
+            caller.msg(f"Nothing to drink from the {target.key}.")
             return
 
-        # Execute the first matching ability
-        ability = abilities[0]
-        if ability["name"] == "drink":
-            from utils.abilities import execute_ability
-            execute_ability(caller, "drink", target)
-        else:
-            caller.msg(f"Found ability '{ability['name']}' for the {target.key}.")
+        # Execute the ability
+        execute_ability(caller, "drink", target)
 
 
 class CmdCheckAbilities(Command):
@@ -148,7 +153,7 @@ class CmdCheckAbilities(Command):
         else:
             # Simple search
             matches = [obj for obj in room.contents
-                      if target_key.lower() in obj.key.lower()]
+                       if target_key.lower() in obj.key.lower()]
             if matches:
                 target = matches[0]
             else:
