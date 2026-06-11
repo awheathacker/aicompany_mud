@@ -11,6 +11,8 @@ import hashlib
 import os
 from typing import Any
 
+from utils.image_paths import get_generated_media_dir, get_media_url_base
+
 # Lazy import so the MUD runs even when the package is absent.
 _backend_cache = None
 
@@ -26,11 +28,8 @@ def _get_backend() -> Any | None:
 
         backend = Flux2RestBackend(
             server_url=os.getenv("FLUX2_SERVER_URL", "http://169.254.209.73:8190"),
-            media_url_base=os.getenv(
-                "MEDIA_URL_BASE",
-                "https://game.test/media/generated",
-            ),
-            output_dir="/home/greyphilosophy/muddev/aicompany_mud/server/.static/media/generated",
+            media_url_base=get_media_url_base(),
+            output_dir=get_generated_media_dir(),
             timeout_s=600.0,
             default_steps=28,
         )

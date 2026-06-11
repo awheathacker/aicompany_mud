@@ -41,7 +41,7 @@ class Object(ImageMixin, ObjectParent, DefaultObject):
         """Return the object description with image appended."""
         desc = getattr(self.db, "desc", "") or ""
         if getattr(self.db, "image_generating", False):
-            return desc
+            return f"{desc}\n\n|yImage: generating...|n" if desc else "|yImage: generating...|n"
         url = getattr(self.db, "image_url", None)
         if url:
             # Check if the image file still exists — if stale, regenerate
@@ -50,41 +50,12 @@ class Object(ImageMixin, ObjectParent, DefaultObject):
                 self._trigger_image_generation(getattr(self.db, "desc", ""), "object")
                 return f"{desc}\n\n|yImage: generating...|n" if desc else "|yImage: generating...|n"
             safe_url = self._make_safe_url(url)
-            return f"{desc}\n\n[Image]({safe_url})"
+            return f"{desc}\n\n|yImage: {safe_url}|n"
 
         # No image yet — trigger generation (respects cooldown)
         if self._can_trigger_image():
             self._trigger_image_generation(getattr(self.db, "desc", ""), "object")
+            return f"{desc}\n\n|yImage: generating...|n" if desc else "|yImage: generating...|n"
 
         return desc
 
-    def _trigger_own_image(self) -> None:
-        """Trigger image generation for this object itself."""
-        import time
-        self.db._image_generation_last_ts = time.time()
-
-        from twisted.internet.threads import deferToThread
-
-        def _generate():
-            try:
-                from utils.image_generation import generate_object_image
-
-                result = generate_object_image(
-                    object_key=self.key,
-                    object_desc=getattr(self.db, "desc", ""),
-                    shortdesc=getattr(self.db, "shortdesc", ""),
-                )
-                if result is not None:
-                    self.db.image_url = result
-                self.db.image_generating = False
-                return result
-
-            except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"[Object] Image generation failed: {e}")
-                self.db.image_generating = False
-                return None
-
-        self.db.image_generating = True
-        deferToThread(_generate)

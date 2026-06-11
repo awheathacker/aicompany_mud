@@ -11,7 +11,11 @@ utils/image_generation.py so all backend configuration lives in one place.
 from __future__ import annotations
 
 import logging
-from typing import Any
+
+from utils.image_paths import (
+    build_generated_image_url,
+    get_generated_image_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +140,8 @@ class ImageMixin:
         """
         url = getattr(self.db, "image_url", None)
         if url:
-            # Convert game.test URL to proper path if needed
-            safe_url = self._make_safe_url(url)
+            # Normalize the image URL for display/attachment delivery.
+            safe_url = build_generated_image_url(url)
             return f'<img src="{safe_url}" width="600" style="border-radius: 8px;">'
         return ""
 
@@ -147,7 +151,7 @@ class ImageMixin:
 
         Appends a markdown image reference on its own line so the gateway can
         detect, attach the file, and strip the reference from text output.
-        Format: [Image](https://game.test/media/generated/filename.png)
+        Format: [Image](/media/generated/filename.png)
         """
         desc = getattr(self.db, "desc", "")
         if getattr(self.db, "image_generating", False):
@@ -166,30 +170,9 @@ class ImageMixin:
     def _is_image_stale(self, url: str) -> bool:
         """Check if the image file referenced by the URL still exists."""
         import os
-        filename = url.split("/")[-1]
-        file_path = os.path.join(
-            os.getenv("MUD_MEDIA_DIR", "/home/greyphilosophy/muddev/aicompany_mud/server/.static/media/generated"),
-            filename,
-        )
+        file_path = get_generated_image_path(url)
         return not os.path.isfile(file_path)
 
     def _make_safe_url(self, url: str) -> str:
-        """Ensure the image URL is safe for display (HTTPS, not base64)."""
-        if not url:
-            return ""
-        if url.startswith("data:image/"):
-            # If it's a base64 data URL, convert to HTTPS path
-            import hashlib
-            digest = hashlib.md5(url.encode()).hexdigest()[:12]
-            return f"https://game.test/media/generated/img_{digest}.png"
-        if url.startswith("/media/"):
-            return f"https://game.test{url}"
-        if url.startswith("media/"):
-            return f"https://game.test/{url}"
-        try:
-            from pathlib import Path
-            if Path(url).is_absolute():
-                return f"https://game.test/media/generated/{Path(url).name}"
-        except Exception:
-            pass
-        return url
+        """Ensure the image URL is safe for display."""
+        return build_generated_image_url(url)
