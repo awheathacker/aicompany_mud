@@ -202,6 +202,7 @@ class TestImageMixinDescriptionHelpers:
                 )
 
         obj = TestObj()
+        obj._is_image_stale = lambda url: False
         result = obj.get_description_with_image()
         assert "cat.png" in result
         assert "brass cat idol" in result

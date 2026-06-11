@@ -30,9 +30,9 @@ def _get_backend() -> Any | None:
                 "MEDIA_URL_BASE",
                 "https://game.test/media/generated",
             ),
-            output_dir="generated",
-            default_steps=28,
+            output_dir="/home/greyphilosophy/muddev/aicompany_mud/server/.static/media/generated",
             timeout_s=600.0,
+            default_steps=28,
         )
         _backend_cache = backend
         return backend
@@ -51,7 +51,7 @@ def _generate_image(backend, subject_type: str, subject_key: str, prompt: str) -
             subject_key=subject_key,
             prompt=prompt,
             mode="txt2img",
-            width=1024,
+            width=1536,
             height=1024,
         )
     )

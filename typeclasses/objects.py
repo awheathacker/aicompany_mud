@@ -38,17 +38,53 @@ class Object(ImageMixin, ObjectParent, DefaultObject):
         return super().at_object_delete()
 
     def get_display_desc(self, looker=None, **kwargs):
-        """Return the object description with image URL appended."""
+        """Return the object description with image appended."""
         desc = getattr(self.db, "desc", "") or ""
         if getattr(self.db, "image_generating", False):
-            return f"{desc}\n\n|yImage: generating...|n"
+            return desc
         url = getattr(self.db, "image_url", None)
         if url:
-            return f"{desc}\n\n|yImage: {url}|n"
-        
+            # Check if the image file still exists — if stale, regenerate
+            if self._is_image_stale(url):
+                self.db.image_url = None
+                self._trigger_image_generation(getattr(self.db, "desc", ""), "object")
+                return f"{desc}\n\n|yImage: generating...|n" if desc else "|yImage: generating...|n"
+            safe_url = self._make_safe_url(url)
+            return f"{desc}\n\n[Image]({safe_url})"
+
         # No image yet — trigger generation (respects cooldown)
         if self._can_trigger_image():
-            prompt = desc or self.key
-            self._trigger_image_generation(prompt, subject_type="object")
-        
+            self._trigger_image_generation(getattr(self.db, "desc", ""), "object")
+
         return desc
+
+    def _trigger_own_image(self) -> None:
+        """Trigger image generation for this object itself."""
+        import time
+        self.db._image_generation_last_ts = time.time()
+
+        from twisted.internet.threads import deferToThread
+
+        def _generate():
+            try:
+                from utils.image_generation import generate_object_image
+
+                result = generate_object_image(
+                    object_key=self.key,
+                    object_desc=getattr(self.db, "desc", ""),
+                    shortdesc=getattr(self.db, "shortdesc", ""),
+                )
+                if result is not None:
+                    self.db.image_url = result
+                self.db.image_generating = False
+                return result
+
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"[Object] Image generation failed: {e}")
+                self.db.image_generating = False
+                return None
+
+        self.db.image_generating = True
+        deferToThread(_generate)
