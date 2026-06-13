@@ -60,6 +60,7 @@ class CmdRegen(Command):
 
             result = generate_room_image(prompt)
             if result:
+                room.db.image_url = result
                 return f"Room image regenerated. [Image]({result})"
             else:
                 return "Image was generated but the URL came back empty."
@@ -97,7 +98,8 @@ class CmdRegen(Command):
             from utils.image_generation import generate_object_image
             result = generate_object_image(obj.key, obj.key)
             if result:
-                return f"[Image]({result})"
+                obj.db.image_url = result
+                return f"Image regenerated for {obj.key}. [Image]({result})"
             else:
                 return "Image was generated but the URL came back empty."
         except Exception as e:
