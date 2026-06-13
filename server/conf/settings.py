@@ -35,6 +35,7 @@ from evennia.settings_default import *
 SERVERNAME = "aicompany_mud"
 ALLOWED_HOSTS = ["pr1357.ddns.net"]
 BASE_EXIT_TYPECLASS = "typeclasses.exits.Exit"
+SERVE_MEDIA = True
 INSTALLED_APPS += ["evennia_ai_image_generator"]
 
 ######################################################################

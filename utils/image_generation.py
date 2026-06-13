@@ -24,13 +24,15 @@ def _get_backend() -> Any | None:
     try:
         from evennia_ai_image_generator.backend.flux2_rest_backend import Flux2RestBackend
 
+        # Build absolute path for the generated media directory
+        import os
+        game_dir = os.path.dirname(os.path.abspath(__file__))
+        media_dir = os.path.join(game_dir, "server", ".media", "generated")
+
         backend = Flux2RestBackend(
             server_url=os.getenv("FLUX2_SERVER_URL", "http://169.254.209.73:8190"),
-            media_url_base=os.getenv(
-                "MEDIA_URL_BASE",
-                "https://game.test/media/generated",
-            ),
-            output_dir="generated",
+            media_url_base="/media/generated",
+            output_dir=media_dir,
             default_steps=28,
             timeout_s=600.0,
         )
