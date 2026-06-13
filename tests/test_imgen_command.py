@@ -75,6 +75,24 @@ class TestImgGenPromptParsing:
         assert parts[0].lower() == "object"
         assert "keycard" in parts[1]
 
+    def test_parse_args_object_with_dbref(self):
+        """'imgen object #42' should include dbref."""
+        args = "object #42"
+        parts = args.split(None, 1)
+        assert parts[0].lower() == "object"
+        assert "#42" in parts[1]
+
+    def test_dbref_pattern_recognition(self):
+        """Dbref strings like #42 should be recognized as dbrefs."""
+        obj_ref = "#42"
+        assert obj_ref.startswith("#") and obj_ref[1:].isdigit()
+
+        obj_ref = "#12345"
+        assert obj_ref.startswith("#") and obj_ref[1:].isdigit()
+
+        obj_ref = "#abc"
+        assert obj_ref.startswith("#") and not obj_ref[1:].isdigit()
+
     def test_parse_empty_args(self):
         """Empty args should result in empty parts list."""
         args = ""

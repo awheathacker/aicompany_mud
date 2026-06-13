@@ -20,12 +20,14 @@ class CmdImgGen(Command):
       imgen room                - Generate from current room's description
       imgen room "prompt..."    - Generate from custom prompt
       imgen object [name]       - Generate from object's description
+      imgen object #dbref       - Generate for object by dbref
       imgen object [name] "prompt..." - Generate with custom prompt
 
     Examples:
       imgen room
       imgen room "spacious library with warm lighting, rows of bookshelves"
       imgen object keycard
+      imgen object #42
       imgen object keycard "metal keycard with glowing blue LED"
     """
     key = "imgen"
@@ -57,33 +59,38 @@ class CmdImgGen(Command):
         except Exception as e:
             return f"Generation failed: {e}"
 
-    def _generate_object(self, obj_key: str, prompt: str) -> str:
-        """Generate an image for a named object."""
+    def _generate_object(self, obj_ref: str, prompt: str) -> str:
+        """Generate an image for an object (by name or #dbref)."""
         backend = self._get_backend()
         if not backend:
             return "FLUX.2 server is not running or the backend is down."
 
-        # Find the object
-        room = self.caller.location
-        if not room:
-            return "You are nowhere (no current room)."
-
-        # Search in room contents first, then global
-        obj = room.search(obj_key)
-        if not obj:
-            # Try searching more broadly
+        # Resolve: #dbref is direct, otherwise search by name
+        if obj_ref.startswith("#") and obj_ref[1:].isdigit():
             from evennia.utils.search import search_object
-            results = search_object(obj_key, typeclass="typeclasses.objects.Object")
-            if results:
-                obj = results[0]
-            else:
-                return f"No object named '{obj_key}' found here."
+            results = search_object(obj_ref)
+            if not results:
+                return f"No object found for dbref {obj_ref}."
+            obj = results[0]
+        else:
+            room = self.caller.location
+            if not room:
+                return "You are nowhere (no current room)."
+            # Search in room contents first, then global
+            obj = room.search(obj_ref)
+            if not obj:
+                from evennia.utils.search import search_object
+                results = search_object(obj_ref, typeclass="typeclasses.objects.Object")
+                if results:
+                    obj = results[0]
+                else:
+                    return f"No object named '{obj_ref}' found here."
 
         try:
             from utils.image_generation import generate_object_image
             result = generate_object_image(obj.key, prompt)
             if result:
-                return f"Image generated for {obj.key}! URL: {result}"
+                return f"Image generated for {obj.key} ({obj.dbref})! URL: {result}"
             else:
                 return "Image was generated but the URL came back empty."
         except Exception as e:
@@ -96,6 +103,7 @@ class CmdImgGen(Command):
                 "  imgen room                (from room description)\n"
                 "  imgen room \"prompt...\"    (custom prompt)\n"
                 "  imgen object [name]       (from object description)\n"
+                "  imgen object #dbref       (by dbref)\n"
                 '  imgen object [name] "prompt..."  (custom prompt)'
             )
             return
